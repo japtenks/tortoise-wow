@@ -15,6 +15,7 @@ DB_ADMIN_USER="${DB_ADMIN_USER:-snapjawadmin}"
 DB_ADMIN_PASSWORD="${DB_ADMIN_PASSWORD:-snapjawadmin}"
 DB_APP_USER="${DB_APP_USER:-torta}"
 DB_APP_PASSWORD="${DB_APP_PASSWORD:-torta}"
+AUTH_WEB_BOOTSTRAP_ADMIN_KEY="${AUTH_WEB_BOOTSTRAP_ADMIN_KEY:-}"
 CT_TEMPLATE_STORAGE="${CT_TEMPLATE_STORAGE:-local}"
 CT_TEMPLATE="${CT_TEMPLATE:-auto}"
 CT_STORAGE="${CT_STORAGE:-auto}"
@@ -51,11 +52,37 @@ DRY_RUN="${DRY_RUN:-0}"
 ORIGINAL_BUILD_CORES=""
 BUILD_CORES_BUMPED="0"
 
+generate_secret() {
+  python3 - <<'PY'
+import secrets
+print(secrets.token_urlsafe(24))
+PY
+}
+
 load_env_file() {
   if [[ -f "${ENV_FILE}" ]]; then
     echo "==> Loading configuration from ${ENV_FILE}"
     # shellcheck disable=SC1090
     source "${ENV_FILE}"
+  fi
+}
+
+ensure_generated_defaults() {
+  if [[ -f "${ENV_FILE}" ]]; then
+    return 0
+  fi
+
+  if [[ "${DB_ROOT_PASSWORD}" == "root" ]]; then
+    DB_ROOT_PASSWORD="$(generate_secret)"
+  fi
+  if [[ "${DB_ADMIN_PASSWORD}" == "snapjawadmin" ]]; then
+    DB_ADMIN_PASSWORD="$(generate_secret)"
+  fi
+  if [[ "${DB_APP_PASSWORD}" == "torta" ]]; then
+    DB_APP_PASSWORD="$(generate_secret)"
+  fi
+  if [[ -z "${AUTH_WEB_BOOTSTRAP_ADMIN_KEY}" ]]; then
+    AUTH_WEB_BOOTSTRAP_ADMIN_KEY="$(generate_secret)"
   fi
 }
 
@@ -565,6 +592,7 @@ DB_ADMIN_USER='${DB_ADMIN_USER}'
 DB_ADMIN_PASSWORD='${DB_ADMIN_PASSWORD}'
 DB_APP_USER='${DB_APP_USER}'
 DB_APP_PASSWORD='${DB_APP_PASSWORD}'
+AUTH_WEB_BOOTSTRAP_ADMIN_KEY='${AUTH_WEB_BOOTSTRAP_ADMIN_KEY}'
 CT_TEMPLATE_STORAGE='${CT_TEMPLATE_STORAGE}'
 CT_TEMPLATE='${CT_TEMPLATE}'
 CT_STORAGE='${CT_STORAGE}'
@@ -600,6 +628,7 @@ ${REALM_MATRIX}
 REALMS
 )
 EOF
+  chmod 600 "${ENV_FILE}"
 }
 
 interactive_setup() {
@@ -664,6 +693,7 @@ for arg in "$@"; do
 done
 
 load_env_file
+ensure_generated_defaults
 
 if [[ "${REQUEST_PROMPT}" == "1" || ! -f "${ENV_FILE}" ]]; then
   interactive_setup
@@ -731,6 +761,7 @@ env \
   DB_APP_USER="${DB_APP_USER}" \
   DB_APP_PASSWORD="${DB_APP_PASSWORD}" \
   LOGIN_DB="${LOGIN_DB}" \
+  AUTH_WEB_BOOTSTRAP_ADMIN_KEY="${AUTH_WEB_BOOTSTRAP_ADMIN_KEY}" \
   "${SCRIPT_DIR}/03-realmd-setup.sh"
 
 echo "==> Step 5/6: Data setup"

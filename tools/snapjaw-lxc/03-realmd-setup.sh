@@ -13,6 +13,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 : "${INSTALL_DIR:=/opt/snapjaw}"
 : "${AUTH_WEB_PORT:=8080}"
 : "${AUTH_WEB_CHARACTER_DBS:=stablecharacters,ptrcharacters}"
+: "${AUTH_WEB_BOOTSTRAP_ADMIN_KEY:=}"
 : "${FORCE_PIN_ACCOUNT_RANK:=99}"
 
 auth_web_secret="$(python3 - <<'PY'
@@ -58,6 +59,7 @@ sed -i "s/^# *en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/" /etc/locale.gen
 locale-gen
 update-locale LANG=en_US.UTF-8
 mkdir -p /opt/snapjaw/bin /opt/snapjaw/etc /opt/snapjaw/logs /opt/snapjaw/auth-web
+id -u snapjaw-auth-web >/dev/null 2>&1 || useradd --system --home-dir /opt/snapjaw/auth-web --shell /usr/sbin/nologin snapjaw-auth-web
 '
 
 echo "==> Copying realmd binary and sample config from CT ${BUILD_CTID} to CT ${REALMD_CTID}"
@@ -100,10 +102,15 @@ env_path.write_text(
         'AUTH_WEB_LOGIN_DB=${LOGIN_DB}',
         'AUTH_WEB_CHARACTER_DBS=${AUTH_WEB_CHARACTER_DBS}',
         'AUTH_WEB_PORT=${AUTH_WEB_PORT}',
+        'AUTH_WEB_BOOTSTRAP_ADMIN_KEY=${AUTH_WEB_BOOTSTRAP_ADMIN_KEY}',
     ]) + '\\n',
     encoding='utf-8',
 )
 PY
+chown -R snapjaw-auth-web:snapjaw-auth-web '${INSTALL_DIR}/auth-web'
+chown root:snapjaw-auth-web '${INSTALL_DIR}/auth-web/auth-web.env'
+chmod 750 '${INSTALL_DIR}/auth-web'
+chmod 640 '${INSTALL_DIR}/auth-web/auth-web.env'
 cat > /etc/systemd/system/realmd.service <<'EOF'
 [Unit]
 Description=SnapJaw realmd
@@ -129,10 +136,13 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=${INSTALL_DIR}/auth-web
+User=snapjaw-auth-web
+Group=snapjaw-auth-web
 EnvironmentFile=${INSTALL_DIR}/auth-web/auth-web.env
 ExecStart=/usr/bin/python3 ${INSTALL_DIR}/auth-web/app.py
 Restart=on-failure
 RestartSec=5
+NoNewPrivileges=true
 
 [Install]
 WantedBy=multi-user.target

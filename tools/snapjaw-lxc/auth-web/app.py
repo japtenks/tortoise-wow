@@ -35,10 +35,13 @@ CHARACTER_DBS = [
 WEB_PORT = int(os.environ.get("AUTH_WEB_PORT", "8080"))
 MONEY_BOOST_COPPER = int(os.environ.get("AUTH_WEB_MONEY_BOOST_COPPER", "10000000"))
 LEVEL_BOOST = int(os.environ.get("AUTH_WEB_LEVEL_BOOST", "60"))
+LOGIN_THROTTLE_WINDOW_SECONDS = int(os.environ.get("AUTH_WEB_LOGIN_THROTTLE_WINDOW_SECONDS", "300"))
+LOGIN_THROTTLE_MAX_ATTEMPTS = int(os.environ.get("AUTH_WEB_LOGIN_THROTTLE_MAX_ATTEMPTS", "5"))
 ACCOUNT_RE = re.compile(r"^[A-Za-z0-9_]{3,16}$")
 BOOTSTRAP_ADMIN_KEY = os.environ.get("AUTH_WEB_BOOTSTRAP_ADMIN_KEY", "").strip()
 PENDING_COMMAND_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{1,15}$")
 DB_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
+FAILED_LOGIN_ATTEMPTS: dict[str, list[float]] = {}
 T1_TRINKET_ITEMS = [13965, 18820]
 CLASS_T1_ITEMS = {
     1: [16861, 16862, 16863, 16864, 16865, 16866, 16867, 16868],
@@ -700,6 +703,46 @@ def require_post_csrf():
         abort(400)
 
 
+def login_throttle_key(username: str) -> str:
+    remote = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown")
+    normalized_user = normalize_credential(username) if username else ""
+    return f"{remote}:{normalized_user}"
+
+
+def prune_failed_logins(now: float):
+    cutoff = now - LOGIN_THROTTLE_WINDOW_SECONDS
+    expired_keys = []
+    for key, attempts in FAILED_LOGIN_ATTEMPTS.items():
+        FAILED_LOGIN_ATTEMPTS[key] = [attempt for attempt in attempts if attempt >= cutoff]
+        if not FAILED_LOGIN_ATTEMPTS[key]:
+            expired_keys.append(key)
+    for key in expired_keys:
+        FAILED_LOGIN_ATTEMPTS.pop(key, None)
+
+
+def check_login_throttle(username: str) -> int | None:
+    now = time.time()
+    prune_failed_logins(now)
+    key = login_throttle_key(username)
+    attempts = FAILED_LOGIN_ATTEMPTS.get(key, [])
+    if len(attempts) < LOGIN_THROTTLE_MAX_ATTEMPTS:
+        return None
+    retry_after = int(LOGIN_THROTTLE_WINDOW_SECONDS - (now - attempts[0]))
+    return max(retry_after, 1)
+
+
+def register_failed_login(username: str):
+    now = time.time()
+    prune_failed_logins(now)
+    key = login_throttle_key(username)
+    attempts = FAILED_LOGIN_ATTEMPTS.setdefault(key, [])
+    attempts.append(now)
+
+
+def clear_failed_logins(username: str):
+    FAILED_LOGIN_ATTEMPTS.pop(login_throttle_key(username), None)
+
+
 def login_account(username: str, password: str) -> dict | None:
     normalized_user = normalize_credential(username)
     row = fetch_one(
@@ -1301,10 +1344,16 @@ def login():
         require_post_csrf()
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "").strip()
+        retry_after = check_login_throttle(username)
+        if retry_after is not None:
+            flash(f"Too many login attempts. Try again in {retry_after} seconds.", "error")
+            return render_page("Login", LOGIN_BODY, csrf_token=session["csrf_token"])
         user = login_account(username, password)
         if not user:
+            register_failed_login(username)
             flash("Invalid username or password.", "error")
         else:
+            clear_failed_logins(username)
             session["account_id"] = user["id"]
             flash("Signed in.", "success")
             return redirect(url_for("admin" if user["is_web_admin"] else "home"))

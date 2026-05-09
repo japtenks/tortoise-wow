@@ -22,12 +22,9 @@ manual_db_sql() {
   done
 
   printf "\n"
-  printf "CREATE USER IF NOT EXISTS '%s'@'%%' IDENTIFIED BY '%s';\n" "${DB_ADMIN_USER}" "${DB_ADMIN_PASSWORD}"
   printf "CREATE USER IF NOT EXISTS '%s'@'localhost' IDENTIFIED BY '%s';\n" "${DB_ADMIN_USER}" "${DB_ADMIN_PASSWORD}"
-  printf "ALTER USER '%s'@'%%' IDENTIFIED BY '%s';\n" "${DB_ADMIN_USER}" "${DB_ADMIN_PASSWORD}"
   printf "ALTER USER '%s'@'localhost' IDENTIFIED BY '%s';\n" "${DB_ADMIN_USER}" "${DB_ADMIN_PASSWORD}"
-  printf "GRANT ALL PRIVILEGES ON *.* TO '%s'@'%%' WITH GRANT OPTION;\n" "${DB_ADMIN_USER}"
-  printf "GRANT ALL PRIVILEGES ON *.* TO '%s'@'localhost' WITH GRANT OPTION;\n" "${DB_ADMIN_USER}"
+  printf "GRANT ALL PRIVILEGES ON *.* TO '%s'@'localhost';\n" "${DB_ADMIN_USER}"
 
   printf "\n"
   printf "CREATE USER IF NOT EXISTS '%s'@'%%' IDENTIFIED BY '%s';\n" "${DB_APP_USER}" "${DB_APP_PASSWORD}"

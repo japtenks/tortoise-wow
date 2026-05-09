@@ -103,12 +103,13 @@ Defaults:
 
 - `INSTALLER_REPO_BRANCH=proxmox-final`
 - `STABLE_REPO_BRANCH=codex/proxmox-final`
-- `PTR_REPO_BRANCH=1181dev`
+- `PTR_REPO_BRANCH=proxmox-ptr`
 
 Notes:
 
 - `update-stable.sh` refreshes the shared auth/realmd CT first, then rebuilds and redeploys the `stable` world.
 - `update-ptr.sh` keeps the shared auth/realmd tooling branch on the installer branch, but rebuilds the `ptr` world from `PTR_REPO_BRANCH`.
+- The intended maintained lanes are `proxmox-final` for installer/stable and `proxmox-ptr` for PTR once that branch exists.
 - `PTR_REPO_BRANCH` must exist on the Git remote selected by `REPO_URL` or the update will stop with a clear error.
 - The provisioning and realm update builds pass `ALLOW_TURTLE_ADDONS=ON`, which is required for the validated Turtle-compatible login flow on the proxmox runtime lane.
 
@@ -161,6 +162,7 @@ Useful bootstrap options:
 - `DB_ROOT_PASSWORD`: used only for the one-time bootstrap/reset path
 - `DB_ADMIN_USER` / `DB_ADMIN_PASSWORD`: persistent admin account for verification and maintenance
 - `DB_APP_USER` / `DB_APP_PASSWORD`: normal app connection user used by the realm services
+- on a fresh interactive install, passwords and the auth portal bootstrap admin key are generated automatically and saved to `snapjaw.env`
 
 ## Auth web portal
 
@@ -316,8 +318,8 @@ Quick MariaDB checks from the DB CT:
 
 ```bash
 pct enter 501
-mariadb -u snapjawadmin -psnapjawadmin -e "SHOW DATABASES;"
-mariadb -u torta -ptorta -e "SELECT CURRENT_USER(), USER();"
+mariadb -u <db_admin_user> -p'<db_admin_password>' -e "SHOW DATABASES;"
+mariadb -u <db_app_user> -p'<db_app_password>' -e "SELECT CURRENT_USER(), USER();"
 ```
 
 Quick auth portal checks from the auth CT:
@@ -418,8 +420,8 @@ FLUSH PRIVILEGES;
 Verify:
 
 ```bash
-mariadb -u snapjawadmin -psnapjawadmin -e "SELECT CURRENT_USER(), USER(); SHOW DATABASES;"
-mariadb -u torta -ptorta -e "SELECT CURRENT_USER(), USER();"
+mariadb -u <db_admin_user> -p'<db_admin_password>' -e "SELECT CURRENT_USER(), USER(); SHOW DATABASES;"
+mariadb -u <db_app_user> -p'<db_app_password>' -e "SELECT CURRENT_USER(), USER();"
 ```
 
 Then exit the DB CT and rerun:

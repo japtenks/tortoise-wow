@@ -46,7 +46,7 @@ if [[ -f "${ENV_FILE}" ]]; then
   set +a
 fi
 
-: "${AUTH_WEB_SECRET:=local-dev-secret}"
+: "${AUTH_WEB_SECRET:=}"
 : "${AUTH_WEB_DB_HOST:=192.168.1.44}"
 : "${AUTH_WEB_DB_PORT:=3306}"
 : "${AUTH_WEB_DB_USER:=torta}"
@@ -54,6 +54,14 @@ fi
 : "${AUTH_WEB_LOGIN_DB:=snapjawrealmd}"
 : "${AUTH_WEB_CHARACTER_DBS:=stablecharacters,ptrcharacters}"
 : "${AUTH_WEB_PORT:=8080}"
+
+if [[ -z "${AUTH_WEB_SECRET}" ]]; then
+  AUTH_WEB_SECRET="$(python3 - <<'PY'
+import secrets
+print(secrets.token_urlsafe(24))
+PY
+)"
+fi
 
 export AUTH_WEB_SECRET
 export AUTH_WEB_DB_HOST

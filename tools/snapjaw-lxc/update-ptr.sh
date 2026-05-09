@@ -6,7 +6,7 @@ REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 ENV_FILE="${ENV_FILE:-${SCRIPT_DIR}/snapjaw.env}"
 
 : "${INSTALLER_REPO_BRANCH:=proxmox-final}"
-: "${PTR_REPO_BRANCH:=1181dev}"
+: "${PTR_REPO_BRANCH:=proxmox-ptr}"
 
 if [[ -f "${ENV_FILE}" ]]; then
   # shellcheck disable=SC1090
