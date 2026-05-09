@@ -1,6 +1,6 @@
 # SnapJaw LXC Minimal Installer
 
-Start by cloning the installer branch of this repo onto that host, then run the entrypoint from `tools/snapjaw-lxc`.
+Start by checking out the installer branch of this repo onto that host, then run the entrypoint from `tools/snapjaw-lxc`.
 
 - `00-install-snapjaw.sh`: run the full end-to-end install
 
@@ -37,11 +37,18 @@ Run these from the Proxmox host.
 
 ```bash
 cd /opt
-git clone --branch proxmox-final https://github.com/japtenks/tortoise-wow.git
+rm -rf /opt/tortoise-wow
+git clone --filter=blob:none --no-checkout --branch proxmox-final https://github.com/japtenks/tortoise-wow.git
+cd /opt/tortoise-wow
+git sparse-checkout init --cone
+git sparse-checkout set tools/snapjaw-lxc
+git checkout
 cd /opt/tortoise-wow/tools/snapjaw-lxc
 chmod +x *.sh
 ./00-install-snapjaw.sh
 ```
+
+This sparse checkout keeps the working tree focused on `tools/snapjaw-lxc` instead of pulling the whole repo contents onto the Proxmox host.
 
 On the first run it will prompt for values, save them to `snapjaw.env`, create any missing LXCs, and then configure them.
 
