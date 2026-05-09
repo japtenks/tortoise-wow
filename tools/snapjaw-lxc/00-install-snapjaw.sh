@@ -131,6 +131,45 @@ prompt_yes_no() {
   esac
 }
 
+list_template_storages() {
+  pvesm status -content vztmpl 2>/dev/null | awk 'NR > 1 { print $1 }'
+}
+
+prompt_template_storage_choice() {
+  local current_value="$1"
+  local input=""
+  local idx=1
+  local storage=""
+  local -a storages=()
+
+  mapfile -t storages < <(list_template_storages)
+
+  if [[ "${#storages[@]}" -eq 0 ]]; then
+    prompt_value CT_TEMPLATE_STORAGE "Template storage" "${current_value}"
+    return 0
+  fi
+
+  echo "Available template storages:"
+  for storage in "${storages[@]}"; do
+    echo "  ${idx}) ${storage}"
+    idx=$((idx + 1))
+  done
+  echo "Enter a number or a storage name."
+
+  read -r -p "Template storage [${current_value}]: " input
+  if [[ -z "${input}" ]]; then
+    CT_TEMPLATE_STORAGE="${current_value}"
+    return 0
+  fi
+
+  if [[ "${input}" =~ ^[0-9]+$ ]] && (( input >= 1 && input <= ${#storages[@]} )); then
+    CT_TEMPLATE_STORAGE="${storages[input-1]}"
+    return 0
+  fi
+
+  CT_TEMPLATE_STORAGE="${input}"
+}
+
 list_available_templates() {
   local storage="$1"
 
@@ -699,7 +738,7 @@ interactive_setup() {
   prompt_value DB_ADMIN_PASSWORD "DB admin password" "${DB_ADMIN_PASSWORD}" 1
   prompt_value DB_APP_USER "App DB user" "${DB_APP_USER}"
   prompt_value DB_APP_PASSWORD "App DB password" "${DB_APP_PASSWORD}" 1
-  prompt_value CT_TEMPLATE_STORAGE "Template storage" "${CT_TEMPLATE_STORAGE}"
+  prompt_template_storage_choice "${CT_TEMPLATE_STORAGE}"
   prompt_template_choice "${CT_TEMPLATE}"
   prompt_value CT_STORAGE "Container storage" "${CT_STORAGE}"
   prompt_value CT_BRIDGE "Network bridge" "${CT_BRIDGE}"
