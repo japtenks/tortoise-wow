@@ -9522,19 +9522,26 @@ void ObjectMgr::LoadShop()
 			}
 
             CachedEntry.resize(1024);
-			int32 FormatResult = std::snprintf(CachedEntry.data(), 1024, "Entries:%u=%s=%u=%s=%u=%u=%u=%.02f=%.02f=%.02f=%.02f=%.02f",
+            // Patch 9 parses entries as:
+            //   categoryID=subcategoryID=name=price=text=id=modelid=itemid=
+            //   posx=posy=posz=rotation=holiday=colors=gender
+            // We currently lack explicit subcategory / holiday / recolor / gender
+            // metadata in the DB schema, so we populate those fields with neutral
+            // defaults while preserving purchase id and preview item semantics.
+            uint32 previewItemEntry = Entry.ItemDisplayID ? Entry.ItemDisplayID : Entry.Item;
+            std::string descriptionText = sWorld.getConfig(CONFIG_BOOL_SEA_NETWORK) ? Entry.Description_loc4 : Entry.Description;
+			int32 FormatResult = std::snprintf(CachedEntry.data(), 1024, "Entries:%u=0=%s=%u=%s=%u=%u=%u=%.02f=%.02f=%.02f=%.02f=0==0",
                 Entry.Category,
 				ItemName.c_str(),
                 Entry.Price,
-				pProto->Description.c_str(),
+				descriptionText.c_str(),
                 Entry.Item,
                 Entry.ModelID,
-                Entry.ItemDisplayID,
+                previewItemEntry,
                 Entry.Position.x,
                 Entry.Position.y,
                 Entry.Position.z,
-                Entry.Rotation,
-                Entry.Scale);
+                Entry.Rotation);
 
             MANGOS_ASSERT(FormatResult > 0);
             if (FormatResult > 1022)

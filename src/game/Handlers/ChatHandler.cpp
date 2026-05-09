@@ -1169,6 +1169,8 @@ bool WorldSession::HandleTurtleAddonMessages(uint32 lang, uint32 type, std::stri
         else if (strstr(msg.c_str(), "TW_SHOP")) // Shop Addon Coms
         {
             static const std::string prefix = "TW_SHOP";
+            BASIC_LOG("[TW_SHOP] account=%u player='%s' msg='%s'",
+                GetAccountId(), _player ? _player->GetName() : "<null>", msg.c_str());
 
             if (strstr(msg.c_str(), "Balance"))
             {
@@ -1184,11 +1186,19 @@ bool WorldSession::HandleTurtleAddonMessages(uint32 lang, uint32 type, std::stri
                 std::string categories = "Categories:";
 
                 for (auto& itr : sObjectMgr.GetShopCategoriesList())
+                {
+                    // Patch 9 expects categories as:
+                    //   categoryID=parentID=name=icon
+                    // We currently do not store parent/subcategory metadata in DB,
+                    // so top-level categories are advertised with parentID 0.
                     if (sWorld.getConfig(CONFIG_BOOL_SEA_NETWORK))
-                        categories += std::to_string(itr.first) + "=" + itr.second.Name_loc4 + "=" + itr.second.Icon + ";";
+                        categories += std::to_string(itr.first) + "=0=" + itr.second.Name_loc4 + "=" + itr.second.Icon + ";";
                     else
-                        categories += std::to_string(itr.first) + "=" + itr.second.Name + "=" + itr.second.Icon + ";";
+                        categories += std::to_string(itr.first) + "=0=" + itr.second.Name + "=" + itr.second.Icon + ";";
+                }
 
+                BASIC_LOG("[TW_SHOP] sending categories account=%u count=%u payload_len=%u",
+                    GetAccountId(), static_cast<uint32>(sObjectMgr.GetShopCategoriesList().size()), static_cast<uint32>(categories.size()));
                 _player->SendAddonMessage(prefix, categories);
                 return true;
             }
@@ -1216,16 +1226,49 @@ bool WorldSession::HandleTurtleAddonMessages(uint32 lang, uint32 type, std::stri
 
                 _player->SendAddonMessage(prefix, "Entries:" + categoryIDString + "=start");
 
-                const ShopCategoriesMap& ShopCategories = sObjectMgr.GetShopCategoriesList();
-                ShopCategoriesMap::const_iterator ShopIter = ShopCategories.find(categoryID);
-                if (ShopIter != ShopCategories.cend())
-                {
-                    const ShopCategory& ShopCat = ShopIter->second;
+                  const ShopCategoriesMap& ShopCategories = sObjectMgr.GetShopCategoriesList();
+                  ShopCategoriesMap::const_iterator ShopIter = ShopCategories.cend();
 
-                    for (const std::string& EntryStr : ShopCat.CachedItemEntries)
-                    {
-                        _player->SendAddonMessage(prefix, EntryStr);
-                    }
+                  // Patch 9 requests exact server category ids and reserves category 0
+                  // for the client-side "About" page. Keep a small compatibility fallback
+                  // for legacy/debug clients that still ask for category 0.
+                  ShopIter = ShopCategories.find(categoryID);
+                  if (ShopIter == ShopCategories.cend() && categoryID == 0 && !ShopCategories.empty())
+                      ShopIter = ShopCategories.begin();
+
+                  if (ShopIter != ShopCategories.cend())
+                  {
+                      const ShopCategory& ShopCat = ShopIter->second;
+                      BASIC_LOG("[TW_SHOP] sending entries account=%u category=%u count=%u",
+                        GetAccountId(), static_cast<uint32>(categoryID), static_cast<uint32>(ShopCat.CachedItemEntries.size()));
+
+                      bool loggedFirstEntry = false;
+                      for (const std::string& EntryStr : ShopCat.CachedItemEntries)
+                      {
+                          const size_t separatorPos = EntryStr.find('=');
+                          if (separatorPos == std::string::npos)
+                          {
+                              _player->SendAddonMessage(prefix, EntryStr);
+                              continue;
+                          }
+
+                          // Cached entries keep the DB category id, but the client requests
+                          // entries using the zero-based display index sent in Categories.
+                          std::string outgoingEntry = "Entries:" + categoryIDString + EntryStr.substr(separatorPos);
+                          if (!loggedFirstEntry)
+                          {
+                              BASIC_LOG("[TW_SHOP] first entry payload account=%u payload='%s'",
+                                  GetAccountId(), outgoingEntry.c_str());
+                              loggedFirstEntry = true;
+                          }
+
+                          _player->SendAddonMessage(prefix, outgoingEntry);
+                      }
+                }
+                else
+                {
+                    BASIC_LOG("[TW_SHOP] requested missing category account=%u category=%u",
+                        GetAccountId(), static_cast<uint32>(categoryID));
                 }
 
                 _player->SendAddonMessage(prefix, "Entries:" + categoryIDString + "=end");
