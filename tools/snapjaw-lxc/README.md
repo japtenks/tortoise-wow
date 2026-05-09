@@ -10,7 +10,6 @@ Start by cloning the installer branch of this repo onto that host, then run the 
 - `03-realmd-setup.sh` also deploys the small auth web portal in the auth CT
 - `05-data-setup.sh`: deploy a prepared data pack or extract client data into `${INSTALL_DIR}/data`
 - `04-world-setup.sh`: install one `mangosd` realm instance in a world LXC
-- `mysql-init/01-emptydb-init-tortoise.sh`: legacy single-node MariaDB/container bootstrap helper kept here as tooling-owned reference
 
 The intended shape is:
 
@@ -202,16 +201,6 @@ Current v1 limits:
 - account usernames and passwords are restricted to `3-16` characters using letters, numbers, or underscore
 - character actions only run when the character is offline
 - the queued Tier 1 mail helper only works for names that fit the pending-command-safe character set
-
-## Legacy container bootstrap helper
-
-If you still need the older single-container MariaDB bootstrap flow we built for ourselves, the helper now lives under:
-
-```text
-tools/snapjaw-lxc/mysql-init/01-emptydb-init-tortoise.sh
-```
-
-It is included here as a tooling-owned artifact, but it is separate from the main LXC installer flow and still assumes a container mount like `/sql_imports` plus default DB names such as `tw_world`, `tw_char`, `tw_logon`, and `tw_logs`.
 
 ## Provisioning
 
