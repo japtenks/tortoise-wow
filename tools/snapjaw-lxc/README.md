@@ -38,7 +38,7 @@ Run these from the Proxmox host.
 
 ```bash
 cd /opt
-git clone --branch tooling https://github.com/japtenks/tortoise-wow.git
+git clone --branch proxmox-final https://github.com/japtenks/tortoise-wow.git
 cd /opt/tortoise-wow/tools/snapjaw-lxc
 chmod +x *.sh
 ./00-install-snapjaw.sh
@@ -46,7 +46,7 @@ chmod +x *.sh
 
 On the first run it will prompt for values, save them to `snapjaw.env`, create any missing LXCs, and then configure them.
 
-If you want the content-sync lane that also carries the selected Penqle core/content changes, use `codex/snapjaw-lxc-penqle-sync` instead.
+If you want the separate content-sync lane that also carries the selected Penqle core/content changes, use the SnapJaw Penqle sync repo/branch instead of this public tooling branch.
 On later runs it will reuse `snapjaw.env` automatically.
 
 Use these modes when needed:
@@ -101,7 +101,7 @@ chmod +x *.sh
 
 Defaults:
 
-- `INSTALLER_REPO_BRANCH=tooling`
+- `INSTALLER_REPO_BRANCH=proxmox-final`
 - `STABLE_REPO_BRANCH=codex/proxmox-final`
 - `PTR_REPO_BRANCH=1181dev`
 
@@ -235,6 +235,106 @@ Retries now reuse the existing source tree, build directory, and install directo
 That means a failure after the build step should come back much faster on the next run.
 
 If you really want a clean rebuild, set `FORCE_REBUILD=1` in `snapjaw.env` or answer `yes` to the rebuild prompt.
+
+## Day-to-day operations
+
+Once the stack exists, most day-to-day work happens through `pct enter`, `systemctl`, and a few fixed install paths.
+
+Common CTs:
+
+- `501`: MariaDB
+- `502`: shared `realmd` plus the auth web portal
+- `503`: `stable` build/runtime by default
+- `504`: `ptr` runtime by default
+
+Enter a container:
+
+```bash
+pct enter 501
+pct enter 502
+pct enter 503
+pct enter 504
+```
+
+Useful paths inside the containers:
+
+- `/opt/snapjaw/bin`: installed binaries such as `realmd` and `mangosd`
+- `/opt/snapjaw/etc`: generated runtime configs such as `realmd.conf` and `mangosd.conf`
+- `/opt/snapjaw/data`: extracted or deployed `dbc`, `maps`, `vmaps`, and `mmaps`
+- `/opt/snapjaw/auth-web`: Flask auth portal files and `auth-web.env`
+- `/opt/tortoise-wow/sql/database_updates`: world DB auto-update files copied into world CTs
+
+Useful services:
+
+- in CT `502`: `realmd`, `snapjaw-auth-web`
+- in world CTs such as `503` and `504`: `mangosd`
+
+Check service state:
+
+```bash
+pct exec 502 -- systemctl status realmd --no-pager
+pct exec 502 -- systemctl status snapjaw-auth-web --no-pager
+pct exec 503 -- systemctl status mangosd --no-pager
+pct exec 504 -- systemctl status mangosd --no-pager
+```
+
+Restart services:
+
+```bash
+pct exec 502 -- systemctl restart realmd
+pct exec 502 -- systemctl restart snapjaw-auth-web
+pct exec 503 -- systemctl restart mangosd
+pct exec 504 -- systemctl restart mangosd
+```
+
+Read recent logs:
+
+```bash
+pct exec 502 -- journalctl -u realmd -n 100 --no-pager
+pct exec 502 -- journalctl -u snapjaw-auth-web -n 100 --no-pager
+pct exec 503 -- journalctl -u mangosd -n 100 --no-pager
+pct exec 504 -- journalctl -u mangosd -n 100 --no-pager
+```
+
+Inspect generated configs:
+
+```bash
+pct exec 502 -- sed -n '1,160p' /opt/snapjaw/etc/realmd.conf
+pct exec 502 -- sed -n '1,160p' /opt/snapjaw/auth-web/auth-web.env
+pct exec 503 -- sed -n '1,220p' /opt/snapjaw/etc/mangosd.conf
+pct exec 504 -- sed -n '1,220p' /opt/snapjaw/etc/mangosd.conf
+```
+
+Check that data files are present:
+
+```bash
+pct exec 503 -- find /opt/snapjaw/data -maxdepth 2 -type d \( -name dbc -o -name maps -o -name vmaps -o -name mmaps \)
+pct exec 504 -- find /opt/snapjaw/data -maxdepth 2 -type d \( -name dbc -o -name maps -o -name vmaps -o -name mmaps \)
+```
+
+Quick MariaDB checks from the DB CT:
+
+```bash
+pct enter 501
+mariadb -u snapjawadmin -psnapjawadmin -e "SHOW DATABASES;"
+mariadb -u torta -ptorta -e "SELECT CURRENT_USER(), USER();"
+```
+
+Quick auth portal checks from the auth CT:
+
+```bash
+pct exec 502 -- ss -ltnp | grep 8080
+pct exec 502 -- curl -I http://127.0.0.1:8080/ || true
+```
+
+Typical rerun patterns:
+
+- full guided installer rerun: `./00-install-snapjaw.sh`
+- validate saved config only: `./00-install-snapjaw.sh --dry-run`
+- rebuild and redeploy stable realm code: `./update-stable.sh`
+- rebuild and redeploy PTR realm code: `./update-ptr.sh`
+- rerun only shared auth/realmd setup: `./03-realmd-setup.sh`
+- rerun only data deployment/extraction: `./05-data-setup.sh`
 
 ## Cleanup
 
