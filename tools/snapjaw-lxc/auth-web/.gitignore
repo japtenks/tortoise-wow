@@ -1,0 +1,3 @@
+.env.local
+.pylibs/
+__pycache__/
