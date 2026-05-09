@@ -131,6 +131,58 @@ prompt_yes_no() {
   esac
 }
 
+list_available_templates() {
+  local storage="$1"
+
+  if command -v pveam >/dev/null 2>&1; then
+    pveam list "${storage}" 2>/dev/null | awk '
+      NR > 1 && $1 ~ /:vztmpl\/debian-.*-standard_.*_amd64\.tar/ { print $1 }
+    '
+    return 0
+  fi
+
+  if [[ "${storage}" == "local" ]]; then
+    find /var/lib/vz/template/cache -maxdepth 1 -type f -name 'debian-*-standard_*_amd64.tar.*' \
+      | sort -V \
+      | awk '{ print "local:vztmpl/" substr($0, length("/var/lib/vz/template/cache/") + 1) }'
+  fi
+}
+
+prompt_template_choice() {
+  local current_value="$1"
+  local input=""
+  local idx=1
+  local selected=""
+  local -a templates=()
+
+  mapfile -t templates < <(list_available_templates "${CT_TEMPLATE_STORAGE}")
+
+  if [[ "${#templates[@]}" -eq 0 ]]; then
+    prompt_value CT_TEMPLATE "Template reference or auto" "${current_value}"
+    return 0
+  fi
+
+  echo "Available Debian templates on ${CT_TEMPLATE_STORAGE}:"
+  for selected in "${templates[@]}"; do
+    echo "  ${idx}) ${selected}"
+    idx=$((idx + 1))
+  done
+  echo "Enter a number, 'auto', or a full template reference."
+
+  read -r -p "Template reference or auto [${current_value}]: " input
+  if [[ -z "${input}" ]]; then
+    CT_TEMPLATE="${current_value}"
+    return 0
+  fi
+
+  if [[ "${input}" =~ ^[0-9]+$ ]] && (( input >= 1 && input <= ${#templates[@]} )); then
+    CT_TEMPLATE="${templates[input-1]}"
+    return 0
+  fi
+
+  CT_TEMPLATE="${input}"
+}
+
 prompt_realms() {
   local current_matrix="$1"
   local first_line
@@ -648,7 +700,7 @@ interactive_setup() {
   prompt_value DB_APP_USER "App DB user" "${DB_APP_USER}"
   prompt_value DB_APP_PASSWORD "App DB password" "${DB_APP_PASSWORD}" 1
   prompt_value CT_TEMPLATE_STORAGE "Template storage" "${CT_TEMPLATE_STORAGE}"
-  prompt_value CT_TEMPLATE "Template reference or auto" "${CT_TEMPLATE}"
+  prompt_template_choice "${CT_TEMPLATE}"
   prompt_value CT_STORAGE "Container storage" "${CT_STORAGE}"
   prompt_value CT_BRIDGE "Network bridge" "${CT_BRIDGE}"
   prompt_value DB_DISK_GB "DB disk GB" "${DB_DISK_GB}"
