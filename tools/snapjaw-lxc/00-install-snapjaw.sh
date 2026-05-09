@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${ENV_FILE:-${SCRIPT_DIR}/snapjaw.env}"
+REPO_ROOT="$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel 2>/dev/null || true)"
 
 DB_CTID="${DB_CTID:-501}"
 REALMD_CTID="${REALMD_CTID:-502}"
@@ -51,6 +52,39 @@ REALM_SLUGS="${REALM_SLUGS:-}"
 DRY_RUN="${DRY_RUN:-0}"
 ORIGINAL_BUILD_CORES=""
 BUILD_CORES_BUMPED="0"
+
+print_repo_version() {
+  local branch=""
+  local commit=""
+  local remote_ref=""
+  local remote_commit=""
+  local status=""
+
+  [[ -n "${REPO_ROOT}" ]] || return 0
+
+  branch="$(git -C "${REPO_ROOT}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  commit="$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || true)"
+  [[ -n "${branch}" && -n "${commit}" ]] || return 0
+
+  echo "==> Installer source: branch ${branch}, commit ${commit}"
+
+  if git -C "${REPO_ROOT}" rev-parse --verify --quiet "origin/${branch}" >/dev/null 2>&1; then
+    remote_ref="origin/${branch}"
+  elif git -C "${REPO_ROOT}" rev-parse --verify --quiet "gitea/${branch}" >/dev/null 2>&1; then
+    remote_ref="gitea/${branch}"
+  else
+    return 0
+  fi
+
+  remote_commit="$(git -C "${REPO_ROOT}" rev-parse --short "${remote_ref}" 2>/dev/null || true)"
+  if [[ -n "${remote_commit}" && "${remote_commit}" == "${commit}" ]]; then
+    status="up to date with ${remote_ref}"
+  else
+    status="local ${commit}, remote ${remote_ref} ${remote_commit}"
+  fi
+
+  echo "==> Installer branch status: ${status}"
+}
 
 generate_secret() {
   python3 - <<'PY'
@@ -785,6 +819,7 @@ done
 
 load_env_file
 ensure_generated_defaults
+print_repo_version
 
 if [[ "${REQUEST_PROMPT}" == "1" || ! -f "${ENV_FILE}" ]]; then
   interactive_setup
