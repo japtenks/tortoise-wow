@@ -8,6 +8,7 @@ set -euo pipefail
 : "${DB_APP_USER:=torta}"
 : "${DB_APP_PASSWORD:=torta}"
 : "${LOGIN_DB:=snapjawrealmd}"
+: "${DB_PORT:=3306}"
 : "${REALM_SLUGS:=stable ptr}"
 : "${INCLUDE_LOGS:=1}"
 
@@ -102,6 +103,7 @@ set -euo pipefail
 systemctl is-active --quiet mariadb
 mariadb -N -B -u '${DB_ADMIN_USER}' -p'${DB_ADMIN_PASSWORD}' < /tmp/snapjaw-db-health.sql >/tmp/snapjaw-db-health.out
 mariadb -N -B -u '${DB_APP_USER}' -p'${DB_APP_PASSWORD}' -e 'SELECT CURRENT_USER();' >/dev/null
+ss -ltn | awk '\$1 == \"LISTEN\" && \$4 ~ /:${DB_PORT}\$/ { print \$4 }' >/tmp/snapjaw-db-listeners.out
 expected_count=1
 for slug in ${REALM_SLUGS}; do
   expected_count=\$((expected_count + 2))
@@ -119,6 +121,20 @@ for slug in ${REALM_SLUGS}; do
     grep -q \"^\${slug}logs\$\" /tmp/snapjaw-db-health.out
   fi
 done
+grep -Eq '(^|[^0-9])0\\.0\\.0\\.0:${DB_PORT}\$|^\\[::\\]:${DB_PORT}\$|^:::${DB_PORT}\$' /tmp/snapjaw-db-listeners.out
+"
+}
+
+configure_mariadb_networking() {
+  pct exec "${DB_CTID}" -- bash -lc "
+set -euo pipefail
+config='/etc/mysql/mariadb.conf.d/50-server.cnf'
+if [[ -f \"\${config}\" ]]; then
+  sed -i 's/^bind-address[[:space:]]*=.*/bind-address = 0.0.0.0/' \"\${config}\"
+  sed -i 's/^[[:space:]]*skip-networking[[:space:]]*=.*/# skip-networking = 0/' \"\${config}\"
+  sed -i 's/^[[:space:]]*skip-networking[[:space:]]*\$/# skip-networking/' \"\${config}\"
+fi
+systemctl restart mariadb
 "
 }
 
@@ -143,8 +159,11 @@ chown mysql:mysql /run/mysqld
 systemctl start mariadb || true
 '
 
+echo "==> Configuring MariaDB for cross-CT access in CT ${DB_CTID}"
+configure_mariadb_networking
+
 if db_is_healthy; then
-  echo "==> MariaDB became healthy after package install, skipping manual recovery"
+  echo "==> MariaDB became healthy after package install and network setup, skipping manual recovery"
   exit 0
 fi
 
