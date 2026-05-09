@@ -7,6 +7,10 @@ ConfVersion=2010100901
 
 RealmID = 1
 
+# SupportedClientBuilds. Space or comma separated list of client builds that this realm accepts and advertises.
+
+SupportedClientBuilds = "7200 7205 7207 7234 7272"
+
 # DataDir. Data directory setting.
 
 DataDir = "../data"

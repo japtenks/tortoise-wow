@@ -27,7 +27,10 @@
 #include "DBCfmt.h"
 #include "SpellMgr.h"
 #include "ObjectMgr.h"
+#include "Config/Config.h"
+#include "Util.h"
 
+#include <algorithm>
 #include <map>
 #include <vector>
 #include <regex>
@@ -118,22 +121,49 @@ DBCStorage <WorldSafeLocsEntry> sWorldSafeLocsStore(WorldSafeLocsEntryfmt);
 
 typedef std::vector<std::string> StoreProblemList;
 
+namespace
+{
+    std::vector<uint32> GetSupportedClientBuilds()
+    {
+        // mangosd keeps a world-session compatibility list rather than reusing
+        // realmd's login-build registry directly. Turtle clients may authenticate
+        // to realmd as newer builds while still presenting a legacy world token.
+        Tokens tokens = StrSplit(sConfig.GetStringDefault("SupportedClientBuilds", "7200 7205 7207 7234 7272"), " ,");
+        std::vector<uint32> builds;
+        builds.reserve(tokens.size());
+
+        for (std::string const& token : tokens)
+        {
+            uint32 build = static_cast<uint32>(atoi(token.c_str()));
+            if (build)
+                builds.push_back(build);
+        }
+
+        std::sort(builds.begin(), builds.end());
+        builds.erase(std::unique(builds.begin(), builds.end()), builds.end());
+        return builds;
+    }
+}
+
 bool IsAcceptableClientBuild(uint32 build)
 {
-    int accepted_versions[] = { 5875, 0 };
-    for (int i = 0; accepted_versions[i]; ++i)
-        if (int(build) == accepted_versions[i])
-            return true;
-
-    return false;
+    std::vector<uint32> const builds = GetSupportedClientBuilds();
+    return std::find(builds.begin(), builds.end(), build) != builds.end();
 }
 
 std::string AcceptableClientBuildsListStr()
 {
+    std::vector<uint32> const builds = GetSupportedClientBuilds();
     std::ostringstream data;
-    int accepted_versions[] = { 5875, 0 };
-    for (int i = 0; accepted_versions[i]; ++i)
-        data << accepted_versions[i] << " ";
+
+    for (size_t i = 0; i < builds.size(); ++i)
+    {
+        if (i)
+            data << ' ';
+
+        data << builds[i];
+    }
+
     return data.str();
 }
 

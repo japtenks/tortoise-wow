@@ -709,8 +709,27 @@ bool AuthSocket::_HandleLogonProof()
             return false;
     }
 
+    RealmBuildInfo const* matchedBuildInfo = FindBuildInfo(_build, _os, _platform);
+    if (!matchedBuildInfo)
+        matchedBuildInfo = FindBuildInfo(_build);
+    // Prefer the exact OS/platform variant for version proof and truthful UI,
+    // but keep a build-only fallback so hashless seed rows still behave like the
+    // legacy hardcoded registry until exact hashes are filled in.
+
+    char osToken[5] = {};
+    char platformToken[5] = {};
+    memcpy(osToken, &_os, sizeof(_os));
+    memcpy(platformToken, &_platform, sizeof(_platform));
+
+    BASIC_LOG("[AuthChallenge] client build=%u os=%s platform=%s matched_build=%u matched_version=%s",
+        _build,
+        osToken,
+        platformToken,
+        matchedBuildInfo ? matchedBuildInfo->build : 0,
+        matchedBuildInfo ? GetBuildVersionString(*matchedBuildInfo).c_str() : "<none>");
+
     ///- Check if the client has one of the expected version numbers
-    bool valid_version = FindBuildInfo(_build) != nullptr;
+    bool valid_version = matchedBuildInfo != nullptr;
 
     ///- Session is closed unless overriden
     _status = STATUS_CLOSED;
@@ -921,7 +940,8 @@ bool AuthSocket::_HandleLogonProof()
     {
         if (!VerifyVersion(lp.A, sizeof(lp.A), lp.crc_hash, false))
         {
-            BASIC_LOG("[AuthChallenge] Account %s tried to login with modified client!", _login.c_str());
+            BASIC_LOG("[AuthChallenge] Account %s tried to login with modified client! build=%u os=%s platform=%s",
+                _login.c_str(), _build, osToken, platformToken);
             char data[2] = { CMD_AUTH_LOGON_PROOF, WOW_FAIL_VERSION_INVALID };
             send(data, sizeof(data));
             return true;
@@ -1246,9 +1266,13 @@ void AuthSocket::LoadRealmlist(ByteBuffer& pkt)
         else
             AmountOfCharacters = 0;
 
-        bool ok_build = i.second.realmBuildInfo.build == _build;
-
-        RealmBuildInfo const* buildInfo = ok_build ? FindBuildInfo(_build) : nullptr;
+        bool ok_build = i.second.allowedBuilds.find(_build) != i.second.allowedBuilds.end();
+        // Realm-list compatibility is intentionally based on the login build that
+        // realmd sees from the client, not on mangosd's separate world-session
+        // compatibility token.
+        RealmBuildInfo const* buildInfo = ok_build ? FindBuildInfo(_build, _os, _platform) : nullptr;
+        if (!buildInfo)
+            buildInfo = FindBuildInfo(_build);
         if (!buildInfo)
             buildInfo = &i.second.realmBuildInfo;
 
@@ -1266,6 +1290,9 @@ void AuthSocket::LoadRealmlist(ByteBuffer& pkt)
         // Show offline state for unsupported client builds and locked realms (1.x clients not support locked state show)
         if (!ok_build || (i.second.allowedSecurityLevel > GetSecurityOn(i.second.m_ID)))
             realmflags = RealmFlags(realmflags | REALM_FLAG_OFFLINE);
+
+        DEBUG_LOG("Realm build validation: client_build=%u matched_version=%s realm='%s' realm_builds='%s' ok_build=%u final_flags=0x%02X",
+            _build, GetBuildVersionString(*buildInfo).c_str(), i.first.c_str(), i.second.realmbuilds.c_str(), ok_build ? 1 : 0, realmflags);
 
         pkt << uint32(i.second.icon); // realm type
         pkt << uint8(realmflags); // realmflags
@@ -1537,7 +1564,9 @@ bool AuthSocket::VerifyVersion(uint8 const* a, int32 aLength, uint8 const* versi
     std::array<uint8, 20> const* versionHash = nullptr;
     if (!isReconnect)
     {
-        RealmBuildInfo const* buildInfo = FindBuildInfo(_build);
+        RealmBuildInfo const* buildInfo = FindBuildInfo(_build, _os, _platform);
+        if (!buildInfo)
+            buildInfo = FindBuildInfo(_build);
         if (!buildInfo)
             return false;
 

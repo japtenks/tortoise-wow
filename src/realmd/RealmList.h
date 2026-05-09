@@ -31,16 +31,18 @@
 
 struct RealmBuildInfo
 {
-    int build;
-    int major_version;
-    int minor_version;
-    int bugfix_version;
-    int hotfix_version;
+    uint16 build = 0;
+    uint8 major_version = 0;
+    uint8 minor_version = 0;
+    uint8 bugfix_version = 0;
+    uint8 hotfix_version = 0;
     std::array<uint8, 20> WindowsHash;
     std::array<uint8, 20> MacHash;
 };
 
 RealmBuildInfo const* FindBuildInfo(uint16 _build);
+RealmBuildInfo const* FindBuildInfo(uint16 _build, uint32 os, uint32 platform);
+std::string GetBuildVersionString(RealmBuildInfo const& buildInfo);
 
 typedef std::set<uint32> RealmBuilds;
 
@@ -54,6 +56,8 @@ struct Realm
     uint32 m_ID;
     AccountTypes allowedSecurityLevel;                      // current allowed join security level (show as locked for not fit accounts)
     float populationLevel;
+    std::string realmbuilds;
+    RealmBuilds allowedBuilds;
     RealmBuildInfo realmBuildInfo;                          // build info for show version in list
 };
 
@@ -74,8 +78,9 @@ class RealmList
         RealmMap::const_iterator end() const { return m_realms.end(); }
         uint32 size() const { return m_realms.size(); }
     private:
+        void LoadAllowedClients();
         void UpdateRealms(bool init);
-        void UpdateRealm( uint32 ID, const std::string& name, const std::string& address, uint32 port, uint8 icon, RealmFlags realmflags, uint8 timezone, AccountTypes allowedSecurityLevel, float popu);
+        void UpdateRealm(uint32 ID, const std::string& name, const std::string& address, uint32 port, uint8 icon, RealmFlags realmflags, uint8 timezone, AccountTypes allowedSecurityLevel, float popu, const std::string& realmbuilds);
     private:
         RealmMap m_realms;                                  ///< Internal map of realms
         uint32   m_UpdateInterval;
