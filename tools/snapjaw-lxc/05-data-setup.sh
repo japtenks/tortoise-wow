@@ -30,6 +30,65 @@ format_duration() {
   fi
 }
 
+run_progress_command() {
+  local label="$1"
+  shift
+
+  perl -e '
+use strict;
+use warnings;
+use POSIX qw(strftime);
+use IPC::Open3;
+use Symbol qw(gensym);
+
+my $label = shift @ARGV;
+my $start = time();
+my $err = gensym;
+my $pid = open3(undef, my $out, $err, @ARGV);
+
+my $print_line = sub {
+  my ($line) = @_;
+  chomp $line;
+  my $now = time();
+  my $elapsed = $now - $start;
+  my $stamp = strftime("%Y-%m-%d %H:%M:%S", localtime($now));
+  my $suffix = "";
+
+  if ($line =~ /\((\d+)\s*\/\s*(\d+)\)/) {
+    my ($current, $total) = ($1, $2);
+    if ($current > 0 && $total >= $current) {
+      my $eta_seconds = int(($elapsed / $current) * ($total - $current));
+      my $eta_h = int($eta_seconds / 3600);
+      my $eta_m = int(($eta_seconds % 3600) / 60);
+      my $eta_s = $eta_seconds % 60;
+      my $percent = sprintf("%.1f", ($current / $total) * 100);
+      $suffix = sprintf(" [elapsed=%ds eta=%02d:%02d:%02d %s%%]", $elapsed, $eta_h, $eta_m, $eta_s, $percent);
+    }
+  } else {
+    $suffix = sprintf(" [elapsed=%ds]", $elapsed);
+  }
+
+  print "[$stamp] [$label] $line$suffix\n";
+};
+
+while (1) {
+  my $read_any = 0;
+  if (defined(my $line = <$out>)) {
+    $read_any = 1;
+    $print_line->($line);
+  }
+  if (defined(my $line = <$err>)) {
+    $read_any = 1;
+    $print_line->($line);
+  }
+  last if !$read_any;
+}
+
+waitpid($pid, 0);
+exit($? >> 8);
+' "${label}" "$@"
+}
+
 has_world_data() {
   local ctid="$1"
   pct exec "${ctid}" -- bash -lc "
@@ -63,6 +122,7 @@ extract_client_on_build() {
   local extraction_finished_at=0
   local extraction_started_label=""
   local extraction_finished_label=""
+  local progress_helper=""
 
   echo "==> Installing client extraction tools in CT ${BUILD_CTID}"
   pct exec "${BUILD_CTID}" -- bash -lc '
@@ -77,10 +137,12 @@ apt-get install -y p7zip-full unzip tar
 
   extraction_started_at="$(date +%s)"
   extraction_started_label="$(date '+%Y-%m-%d %H:%M:%S %Z')"
+  progress_helper="$(typeset -f run_progress_command)"
   echo "==> Data extraction started at ${extraction_started_label}"
   echo "==> Extracting client archive in CT ${BUILD_CTID}"
   pct exec "${BUILD_CTID}" -- bash -lc "
-set -e
+set -euo pipefail
+${progress_helper}
 rm -rf /tmp/snapjaw-wow-client
 mkdir -p /tmp/snapjaw-wow-client \
   '${INSTALL_DIR}/data/dbc' \
@@ -102,15 +164,15 @@ for extractor in mapextractor vmapextractor vmap_assembler MoveMapGen; do
 done
 rm -rf '${INSTALL_DIR}/data/vmaps'/* '${INSTALL_DIR}/data/mmaps'/* \"\${WOW_CLIENT_ROOT}/Buildings\"
 echo '[1/4] Extracting maps and dbc...'
-mapextractor -i \"\${WOW_CLIENT_ROOT}\" -o '${INSTALL_DIR}/data'
+run_progress_command maps-dbc mapextractor -i \"\${WOW_CLIENT_ROOT}\" -o '${INSTALL_DIR}/data'
 echo '[2/4] Extracting vmap buildings...'
 cd \"\${WOW_CLIENT_ROOT}\"
-vmapextractor -d \"\${WOW_CLIENT_ROOT}/Data\"
+run_progress_command vmapextract vmapextractor -d \"\${WOW_CLIENT_ROOT}/Data\"
 echo '[3/4] Assembling vmaps...'
-vmap_assembler \"\${WOW_CLIENT_ROOT}/Buildings\" '${INSTALL_DIR}/data/vmaps'
+run_progress_command vmap-assemble vmap_assembler \"\${WOW_CLIENT_ROOT}/Buildings\" '${INSTALL_DIR}/data/vmaps'
 echo '[4/4] Generating mmaps (this will take a long time)...'
 cd '${INSTALL_DIR}/data'
-MoveMapGen --silent
+run_progress_command mmaps MoveMapGen --silent
 "
   extraction_finished_at="$(date +%s)"
   extraction_finished_label="$(date '+%Y-%m-%d %H:%M:%S %Z')"
