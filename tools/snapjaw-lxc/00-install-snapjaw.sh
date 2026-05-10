@@ -923,4 +923,11 @@ while IFS='|' read -r realm_slug world_ctid realm_id realm_name realm_address wo
     "${SCRIPT_DIR}/04-world-setup.sh"
 done <<< "${REALM_MATRIX}"
 
+echo "==> Restarting realmd after realm registration"
+pct exec "${REALMD_CTID}" -- bash -lc "
+set -e
+systemctl restart realmd
+systemctl status realmd --no-pager
+"
+
 echo "==> SnapJaw install flow completed"

@@ -151,8 +151,8 @@ EOF
 systemctl daemon-reload
 systemctl enable realmd
 systemctl enable snapjaw-auth-web
-systemctl restart realmd
+systemctl stop realmd || true
+systemctl reset-failed realmd || true
 systemctl restart snapjaw-auth-web
-systemctl status realmd --no-pager
 systemctl status snapjaw-auth-web --no-pager
 "
