@@ -3,7 +3,7 @@ set -euo pipefail
 
 : "${WORLD_CTID:?WORLD_CTID is required}"
 : "${BUILD_CTID:=503}"
-: "${DB_HOST:=192.168.1.44}"
+: "${DB_HOST:=127.0.0.1}"
 : "${DB_PORT:=3306}"
 : "${DB_APP_USER:=torta}"
 : "${DB_APP_PASSWORD:=torta}"

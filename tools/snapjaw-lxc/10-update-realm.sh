@@ -9,7 +9,7 @@ set -euo pipefail
 : "${WORLD_PORT:?WORLD_PORT is required}"
 : "${REPO_URL:=https://github.com/japtenks/tortoise-wow.git}"
 : "${REPO_BRANCH:?REPO_BRANCH is required}"
-: "${DB_HOST:=192.168.1.44}"
+: "${DB_HOST:=127.0.0.1}"
 : "${DB_PORT:=3306}"
 : "${DB_APP_USER:=torta}"
 : "${DB_APP_PASSWORD:=torta}"

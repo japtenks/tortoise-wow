@@ -47,7 +47,7 @@ if [[ -f "${ENV_FILE}" ]]; then
 fi
 
 : "${AUTH_WEB_SECRET:=}"
-: "${AUTH_WEB_DB_HOST:=192.168.1.44}"
+: "${AUTH_WEB_DB_HOST:=127.0.0.1}"
 : "${AUTH_WEB_DB_PORT:=3306}"
 : "${AUTH_WEB_DB_USER:=torta}"
 : "${AUTH_WEB_DB_PASSWORD:=torta}"

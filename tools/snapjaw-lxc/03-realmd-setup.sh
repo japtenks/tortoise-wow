@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 : "${REALMD_CTID:=502}"
 : "${BUILD_CTID:=503}"
-: "${DB_HOST:=192.168.1.44}"
+: "${DB_HOST:=127.0.0.1}"
 : "${DB_PORT:=3306}"
 : "${DB_APP_USER:=torta}"
 : "${DB_APP_PASSWORD:=torta}"
