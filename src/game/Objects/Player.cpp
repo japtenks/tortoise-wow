@@ -15052,6 +15052,8 @@ void Player::RewardQuest(Quest const *pQuest, uint32 reward, WorldObject* questE
         AwardTitle(TITLE_SEEKER_OF_KNOWLEDGE);
         sWorld.SendWorldText(50305, GetName());
     }
+
+    AwardQuestShopCredits(pQuest);
 }
 
 void Player::FailQuest(uint32 questId)
@@ -25277,6 +25279,109 @@ bool Player::HasEarnedTitle(uint8 titleId)
 bool Player::HasTitle(uint8 titleId)
 {
     return m_playerTitles.find(titleId) != m_playerTitles.end() || titleId == 0;
+}
+
+namespace
+{
+    bool ShouldAwardQuestShopCredits(Quest const* pQuest)
+    {
+        return pQuest &&
+            !pQuest->IsRepeatable() &&
+            !pQuest->HasSpecialFlag(QUEST_SPECIAL_FLAG_DAILY) &&
+            !pQuest->HasSpecialFlag(QUEST_SPECIAL_FLAG_TIMED);
+    }
+}
+
+void Player::AwardQuestShopCredits(Quest const* pQuest)
+{
+    if (!pQuest || !GetSession() || !sWorld.getConfig(CONFIG_BOOL_QUEST_SHOP_TOKENS_ENABLED))
+        return;
+
+    uint32 baseReward = sWorld.getConfig(CONFIG_UINT32_QUEST_SHOP_TOKEN_REWARD);
+    if (baseReward == 0 || !ShouldAwardQuestShopCredits(pQuest))
+        return;
+
+    uint32 questId = pQuest->GetQuestId();
+    uint32 accountId = GetSession()->GetAccountId();
+    if (!LoginDatabase.BeginTransaction(accountId))
+    {
+        sLog.outError("Failed to begin quest shop credit transaction for account %u quest %u.", accountId, questId);
+        return;
+    }
+
+    if (LoginDatabase.PQuery("SELECT `account_id` FROM `shop_quest_credit_rewards` WHERE `account_id` = %u AND `quest_id` = %u FOR UPDATE", accountId, questId))
+    {
+        LoginDatabase.RollbackTransaction();
+        return;
+    }
+
+    int32 currentBalance = 0;
+    std::unique_ptr<QueryResult> balanceResult(LoginDatabase.PQuery("SELECT `coins` FROM `shop_coins` WHERE `id` = %u FOR UPDATE", accountId));
+    if (balanceResult)
+        currentBalance = (*balanceResult)[0].GetInt32();
+
+    uint32 milestoneInterval = sWorld.getConfig(CONFIG_UINT32_QUEST_SHOP_MILESTONE_INTERVAL);
+    uint32 milestoneReward = sWorld.getConfig(CONFIG_UINT32_QUEST_SHOP_MILESTONE_REWARD);
+    uint32 milestoneQuestCount = 0;
+    int32 totalCredits = int32(baseReward);
+
+    uint32 rewardedQuestCount = 0;
+    std::unique_ptr<QueryResult> countResult(LoginDatabase.PQuery("SELECT COUNT(*) FROM `shop_quest_credit_rewards` WHERE `account_id` = %u", accountId));
+    if (countResult)
+        rewardedQuestCount = (*countResult)[0].GetUInt32();
+
+    if (milestoneInterval > 0 && milestoneReward > 0)
+    {
+        milestoneQuestCount = rewardedQuestCount + 1;
+        if (milestoneQuestCount % milestoneInterval != 0)
+            milestoneQuestCount = 0;
+        else if (LoginDatabase.PQuery("SELECT `account_id` FROM `shop_quest_credit_milestones` WHERE `account_id` = %u AND `milestone_quests` = %u FOR UPDATE",
+            accountId, milestoneQuestCount))
+            milestoneQuestCount = 0;
+    }
+
+    if (milestoneQuestCount > 0)
+        totalCredits += int32(milestoneReward);
+
+    std::string questReference = "quest:" + std::to_string(questId);
+    bool success =
+        LoginDatabase.PExecute("INSERT INTO `shop_quest_credit_rewards` (`account_id`, `quest_id`, `character_guid`, `credits`) VALUES (%u, %u, %u, %u)",
+            accountId, questId, GetGUIDLow(), baseReward) &&
+        LoginDatabase.PExecute("INSERT INTO `shop_coins` (`id`, `coins`) VALUES (%u, %i) ON DUPLICATE KEY UPDATE `coins` = `coins` + %i",
+            accountId, totalCredits, totalCredits) &&
+        LoginDatabase.PExecute("INSERT INTO `shop_coins_history` (`account_id`, `points`, `actual_points`, `new_points`, `type`, `system`, `reference`) VALUES (%u, %i, %i, %i, 'credit', 'quest_reward', '%s')",
+            accountId, baseReward, currentBalance, currentBalance + totalCredits, questReference.c_str());
+
+    if (success && milestoneQuestCount > 0)
+    {
+        std::string milestoneReference = "quest_milestone:" + std::to_string(milestoneQuestCount);
+        success =
+            LoginDatabase.PExecute("INSERT INTO `shop_quest_credit_milestones` (`account_id`, `milestone_quests`, `character_guid`, `credits`) VALUES (%u, %u, %u, %u)",
+                accountId, milestoneQuestCount, GetGUIDLow(), milestoneReward) &&
+            LoginDatabase.PExecute("INSERT INTO `shop_coins_history` (`account_id`, `points`, `actual_points`, `new_points`, `type`, `system`, `reference`) VALUES (%u, %u, %i, %i, 'credit', 'quest_milestone', '%s')",
+                accountId, milestoneReward, currentBalance + baseReward, currentBalance + totalCredits, milestoneReference.c_str());
+    }
+
+    if (!success)
+    {
+        LoginDatabase.RollbackTransaction();
+        sLog.outError("Failed to award quest shop credits for account %u quest %u.", accountId, questId);
+        return;
+    }
+
+    if (!LoginDatabase.CommitTransactionDirect())
+    {
+        sLog.outError("Failed to commit quest shop credits for account %u quest %u.", accountId, questId);
+        return;
+    }
+
+    if (sWorld.getConfig(CONFIG_BOOL_QUEST_SHOP_TOKENS_ANNOUNCE))
+    {
+        if (milestoneQuestCount > 0)
+            ChatHandler(this).PSendSysMessage("You earned %i shop tokens for quest progress, including a milestone bonus.", totalCredits);
+        else
+            ChatHandler(this).PSendSysMessage("You earned %u shop token%s for completing this quest.", baseReward, baseReward == 1 ? "" : "s");
+    }
 }
 
 void Player::AwardTitle(int8 title)

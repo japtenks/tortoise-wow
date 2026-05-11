@@ -2103,6 +2103,26 @@ Suspicious.Movement.MovementSpeedThreshold = 100.0
 # Shop.RefundWindow - how long players have to request refund of shop items after buying them (in seconds)
 Shop.RefundWindow = 2592000
 
+# Shop.QuestTokens.Enable
+# Quietly award shop tokens for first-time, non-repeatable quest rewards on an account.
+Shop.QuestTokens.Enable = 0
+
+# Shop.QuestTokens.Announce
+# Show a chat message when quest tokens are awarded.
+Shop.QuestTokens.Announce = 0
+
+# Shop.QuestTokens.RewardPerQuest
+# Base tokens awarded for each eligible quest completed on the account.
+Shop.QuestTokens.RewardPerQuest = 1
+
+# Shop.QuestTokens.MilestoneInterval
+# Award a bonus each time the account reaches this many unique rewarded quests.
+Shop.QuestTokens.MilestoneInterval = 25
+
+# Shop.QuestTokens.MilestoneReward
+# Bonus tokens awarded at each unique-quest milestone.
+Shop.QuestTokens.MilestoneReward = 5
+
 # Performance tracking
 Perf.Enable = 1
 

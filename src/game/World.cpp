@@ -1462,6 +1462,11 @@ void World::LoadConfigSettingsFromFile(bool reload)
     setConfig(CONFIG_BOOL_HOLIDAY_EVENT, "HolidayEvent", true);
     // Shop:
     setConfig(CONFIG_UINT32_SHOP_REFUND_WINDOW, "Shop.RefundWindow", DAY * 2);
+    setConfig(CONFIG_BOOL_QUEST_SHOP_TOKENS_ENABLED, "Shop.QuestTokens.Enable", false);
+    setConfig(CONFIG_BOOL_QUEST_SHOP_TOKENS_ANNOUNCE, "Shop.QuestTokens.Announce", false);
+    setConfig(CONFIG_UINT32_QUEST_SHOP_TOKEN_REWARD, "Shop.QuestTokens.RewardPerQuest", 1);
+    setConfig(CONFIG_UINT32_QUEST_SHOP_MILESTONE_INTERVAL, "Shop.QuestTokens.MilestoneInterval", 25);
+    setConfig(CONFIG_UINT32_QUEST_SHOP_MILESTONE_REWARD, "Shop.QuestTokens.MilestoneReward", 5);
 
     setConfig(CONFIG_UINT32_AUTO_PDUMP_MIN_CHAR_LEVEL, "AutoPDump.MinCharLevel", 30);
     setConfig(CONFIG_UINT32_AUTO_PDUMP_DELETE_AFTER_DAYS, "AutoPDump.DeleteAfterDays", 60);

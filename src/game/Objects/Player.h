@@ -3064,6 +3064,7 @@ public:
         uint8 GetActiveTitle();
         void SendEarnedTitles();
         void ChangeTitle(uint8 title);
+        void AwardQuestShopCredits(Quest const* pQuest);
         void UpdateAppearance();
         bool HasAllZonesExplored();
 
