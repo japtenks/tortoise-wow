@@ -38,7 +38,7 @@ Run these from the Proxmox host.
 ```bash
 cd /opt
 rm -rf /opt/tortoise-wow
-git clone --filter=blob:none --no-checkout --branch snapjaw/proxmox-final https://github.com/japtenks/tortoise-wow.git
+git clone --filter=blob:none --no-checkout --branch snapjaw/proxmox-tooling https://github.com/japtenks/tortoise-wow.git
 cd /opt/tortoise-wow
 git sparse-checkout init --cone
 git sparse-checkout set tools/snapjaw-lxc
@@ -107,7 +107,7 @@ chmod +x *.sh
 
 Defaults:
 
-- `INSTALLER_REPO_BRANCH=snapjaw/proxmox-final`
+- `INSTALLER_REPO_BRANCH=snapjaw/proxmox-tooling`
 - `STABLE_REPO_BRANCH=codex/proxmox-final`
 - `PTR_REPO_BRANCH=proxmox-ptr`
 
@@ -115,7 +115,7 @@ Notes:
 
 - `update-stable.sh` refreshes the shared auth/realmd CT first, then rebuilds and redeploys the `stable` world.
 - `update-ptr.sh` keeps the shared auth/realmd tooling branch on the installer branch, but rebuilds the `ptr` world from `PTR_REPO_BRANCH`.
-- The intended maintained lanes are `snapjaw/proxmox-final` for the installer checkout, `codex/proxmox-final` for the stable realm build, and `proxmox-ptr` for PTR once that branch exists.
+- The intended maintained lanes are `snapjaw/proxmox-tooling` for the installer checkout, `codex/proxmox-final` for the stable realm build, and `proxmox-ptr` for PTR once that branch exists.
 - `PTR_REPO_BRANCH` must exist on the Git remote selected by `REPO_URL` or the update will stop with a clear error.
 - The provisioning and realm update builds pass `ALLOW_TURTLE_ADDONS=ON`, which is required for the validated Turtle-compatible login flow on the proxmox runtime lane.
 
