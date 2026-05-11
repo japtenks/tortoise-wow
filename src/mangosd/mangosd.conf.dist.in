@@ -50,8 +50,8 @@ LogsDatabase.Info = "127.0.0.1;3306;mangos;mangos;tw_logs"
 
 Database.AutoUpdate.Enabled = 1
 Database.AutoUpdate.Path = "../../sql/"
-Database.AutoUpdate.AuthUpdateName = "unused"
-Database.AutoUpdate.CharUpdateName = "unused"
+Database.AutoUpdate.AuthUpdateName = "auth_updates"
+Database.AutoUpdate.CharUpdateName = "char_updates"
 Database.AutoUpdate.WorldUpdateName = "database_updates"
 
 # Automatically committing world changes to github. Set to 0 to disable.
