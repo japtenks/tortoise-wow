@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 ENV_FILE="${ENV_FILE:-${SCRIPT_DIR}/snapjaw.env}"
 
-: "${INSTALLER_REPO_BRANCH:=proxmox-final}"
+: "${INSTALLER_REPO_BRANCH:=snapjaw/proxmox-final}"
 : "${STABLE_REPO_BRANCH:=codex/proxmox-final}"
 
 if [[ -f "${ENV_FILE}" ]]; then
